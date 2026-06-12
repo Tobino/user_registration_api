@@ -45,6 +45,6 @@ USER appuser
 COPY ./app /backend/app
 
 # Expose the port that the application listens on.
-EXPOSE 8080
+EXPOSE 8081
 
-CMD ["fastapi", "run", "app/main.py", "--port", "8080"]
+CMD ["fastapi", "run", "app/main.py", "--port", "8081", "--proxy-headers"]
