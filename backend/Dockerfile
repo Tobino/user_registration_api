@@ -38,6 +38,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=/requirements.txt,target=/backend/requirements.txt \
     python -m pip install -r /backend/requirements.txt
 
+# ---- dev image: adds test tooling, used by the `tests` compose service ----
+FROM base as dev
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=bind,source=/requirements.txt,target=/backend/requirements.txt \
+    --mount=type=bind,source=/requirements-dev.txt,target=/backend/requirements-dev.txt \
+    python -m pip install -r /backend/requirements-dev.txt
+# Copy the source code and tests into the container.
+COPY . /backend
+USER appuser
+CMD ["pytest"]
+
+# ---- production image ----
+FROM base as prod
+
 # Switch to the non-privileged user to run the application.
 USER appuser
 

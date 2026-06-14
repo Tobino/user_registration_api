@@ -32,3 +32,13 @@ flowchart LR
     api -->|codes w/ TTL,<br/>rate-limit windows| redis
     api -->|httpx + retry| webhooksite
 ```
+
+---
+
+## Testing
+
+Run the full suite in a container (no local Python needed):
+
+```bash
+docker compose run --rm tests
+```

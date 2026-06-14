@@ -11,6 +11,7 @@ services:
   server:
     build:
       context: ./backend
+      target: prod
   proxy:
       image: nginx:alpine
       ports:
@@ -52,3 +53,10 @@ services:
 # secrets:
 #   db-password:
 #     file: db/password.txt
+
+  # --- Test runner: `docker compose run --rm tests` --------------------------
+  tests:
+    build:
+      context: ./backend
+      target: dev
+    command: ["pytest"]
