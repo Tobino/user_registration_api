@@ -1,9 +1,14 @@
 """User registration and activation endpoints."""
 
 from fastapi import APIRouter, Depends, status
+from fastapi.security import HTTPBasicCredentials
 
-from app.api.deps import get_user_service
-from app.schemas.user import MessageResponse, UserRegistrationRequest
+from app.api.deps import basic_auth, get_user_service
+from app.schemas.user import (
+    ActivationRequest,
+    MessageResponse,
+    UserRegistrationRequest,
+)
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -36,8 +41,16 @@ async def register_user(
 
 @router.post(
     "/activate",
-    summary="Activate a user account",
+    response_model=MessageResponse,
+    summary="Activate a user account with the 4-digit code",
 )
-async def activate_user() -> dict[str, str]:
-    """Placeholder activation endpoint."""
-    return {"message": "hello world"}
+async def activate_user(
+    payload: ActivationRequest,
+    credentials: HTTPBasicCredentials = Depends(basic_auth),
+    service: UserService = Depends(get_user_service),
+) -> MessageResponse:
+    # The account is identified via HTTP Basic auth; only the code is in the
+    # body. A user gets at most 3 guesses per issued code before being locked
+    # out until a new code is requested.
+    await service.activate(credentials.username, credentials.password, payload.code)
+    return MessageResponse(message="Account activated.")

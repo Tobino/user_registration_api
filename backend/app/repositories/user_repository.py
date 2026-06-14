@@ -25,6 +25,13 @@ class UserRepository:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
+    async def get_by_email(self, email: str) -> UserRecord | None:
+        row = await self._pool.fetchrow(
+            "SELECT id, email, password_hash, is_active FROM users WHERE email = $1",
+            email,
+        )
+        return UserRecord(**dict(row)) if row is not None else None
+
     async def create(self, email: str, password_hash: str) -> UserRecord | None:
         """Insert a new user with an already-hashed password.
 
@@ -43,3 +50,9 @@ class UserRepository:
             password_hash,
         )
         return UserRecord(**dict(row)) if row is not None else None
+
+    async def mark_active(self, user_id: UUID) -> None:
+        await self._pool.execute(
+            "UPDATE users SET is_active = TRUE, activated_at = now() WHERE id = $1",
+            user_id,
+        )

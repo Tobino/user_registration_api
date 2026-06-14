@@ -19,6 +19,16 @@ class UserRegistrationRequest(BaseModel):
         return value.strip().lower()
 
 
+class ActivationRequest(BaseModel):
+    """Body of ``POST /users/activate``.
+
+    Credentials are supplied via HTTP Basic auth; only the 4-digit code travels
+    in the body.
+    """
+
+    code: str = Field(min_length=4, max_length=4, pattern=r"^\d{4}$")
+
+
 class MessageResponse(BaseModel):
     """Generic, enumeration-safe response envelope."""
 

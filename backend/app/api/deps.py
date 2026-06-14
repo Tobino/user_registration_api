@@ -12,6 +12,7 @@ import os
 
 import redis.asyncio as redis
 from fastapi import Depends, Request
+from fastapi.security import HTTPBasic
 
 from app.db.postgres import Database
 from app.repositories.user_repository import UserRepository
@@ -21,6 +22,12 @@ from app.services.user_service import UserService
 
 # Activation codes expire after this validity window (enforced by Redis TTL).
 CODE_TTL_SECONDS = int(os.environ.get("CODE_TTL_SECONDS", "60"))
+
+# Maximum number of code guesses allowed per issued activation code.
+ACTIVATION_MAX_ATTEMPTS = int(os.environ.get("ACTIVATION_MAX_ATTEMPTS", "3"))
+
+# HTTP Basic auth used by the activation endpoint to identify the user.
+basic_auth = HTTPBasic()
 
 
 def get_email_sender(request: Request) -> EmailSender:
@@ -48,4 +55,4 @@ def get_user_service(
     codes: CodeStore = Depends(get_code_store),
     email: EmailSender = Depends(get_email_sender),
 ) -> UserService:
-    return UserService(users, codes, email)
+    return UserService(users, codes, email, max_attempts=ACTIVATION_MAX_ATTEMPTS)

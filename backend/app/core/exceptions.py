@@ -24,6 +24,35 @@ class DomainError(Exception):
         super().__init__(self.detail)
 
 
+class InvalidCredentials(DomainError):
+    """Wrong email/password on activation.
+
+    The same error is raised whether the account is missing or the password is
+    wrong, so the response never reveals which emails exist.
+    """
+
+    status_code = 401
+    detail = "Invalid credentials."
+
+
+class InvalidOrExpiredCode(DomainError):
+    """The supplied activation code is wrong, already used, or past its TTL."""
+
+    status_code = 400
+    detail = "Invalid or expired activation code."
+
+
+class TooManyAttempts(DomainError):
+    """The 3-attempt cap on activation-code guesses has been exhausted.
+
+    The user must request a fresh code (which resets the counter) before trying
+    again.
+    """
+
+    status_code = 429
+    detail = "Too many invalid activation attempts. Request a new code."
+
+
 class EmailDeliveryError(DomainError):
     """The third-party email API could not be reached after retries."""
 
