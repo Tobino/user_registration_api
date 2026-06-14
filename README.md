@@ -95,6 +95,45 @@ curl -i -X POST http://localhost:8080/users \
 
 ---
 
+## Configuration
+
+All settings are read from **environment variables**, validated by Pydantic in
+[`app/core/config.py`](backend/app/core/config.py). The defaults below match the
+Docker Compose setup, so nothing has to be set to run locally.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`/`INFO`/`WARNING`/`ERROR`). |
+| `DATABASE_URL` | *(unset)* | Full asyncpg DSN. Wins over the `DB_*` parts when set. |
+| `DB_HOST` / `DB_PORT` | `db` / `5432` | PostgreSQL host and port. |
+| `DB_USER` / `DB_NAME` | `postgres` / `users` | PostgreSQL user and database. |
+| `DB_PASSWORD` | `postgres` | PostgreSQL password (ignored if `DB_PASSWORD_FILE` is set). |
+| `DB_PASSWORD_FILE` | *(unset)* | Path to a Docker secret file holding the password. |
+| `DB_POOL_MIN_SIZE` / `DB_POOL_MAX_SIZE` | `1` / `10` | asyncpg connection pool bounds. |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL. |
+| `CODE_TTL_SECONDS` | `60` | Activation-code validity window (Redis TTL). |
+| `ACTIVATION_MAX_ATTEMPTS` | `3` | Max code guesses per issued code before lockout. |
+| `SIGNUP_RATE_LIMIT` | `50` | Max registrations per IP within the window (see below). |
+| `SIGNUP_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Rolling window for the per-IP signup limit. |
+| `EMAIL_API_URL` | `http://email/` | Third-party email API endpoint. |
+| `EMAIL_API_TIMEOUT_SECONDS` | `5.0` | Per-request timeout for the email API. |
+| `EMAIL_API_RETRY_ATTEMPTS` | `3` | Retry attempts when sending the activation email. |
+
+---
+
+## Rate limiting
+
+`POST /users` is capped at **50 registrations per IP per hour** — a sliding
+window stored in Redis. Once the budget is spent the endpoint returns **`429 Too
+Many Requests`** with a **`Retry-After`** header, before any account work is
+done. Tune it with `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_WINDOW_SECONDS`.
+
+The client IP comes from `X-Forwarded-For` (uvicorn runs with `--proxy-headers`
+behind the nginx proxy). Activation is separately protected by a per-code guess
+cap (`ACTIVATION_MAX_ATTEMPTS`, default 3).
+
+---
+
 ## Testing
 
 Run the full suite in a container (no local Python needed):
