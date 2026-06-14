@@ -1,9 +1,11 @@
 """User registration and activation endpoints."""
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.deps import get_email_sender
 from app.core.security import generate_code
 from app.schemas.user import MessageResponse, UserRegistrationRequest
+from app.services.email import EmailSender
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -20,8 +22,15 @@ _GENERIC_REGISTRATION_MESSAGE = (
     response_model=MessageResponse,
     summary="Register a new user and send an activation code",
 )
-async def register_user(payload: UserRegistrationRequest) -> MessageResponse:
-    generate_code()
+async def register_user(
+    payload: UserRegistrationRequest,
+    email_sender: EmailSender = Depends(get_email_sender),
+) -> MessageResponse:
+    # Persistence and rate limiting are still out of scope: we only generate the
+    # 4-digit code and hand it to the third-party email service (which, in
+    # compose, logs it so it can be observed).
+    code = generate_code()
+    await email_sender.send_activation_code(payload.email, code)
     return MessageResponse(message=_GENERIC_REGISTRATION_MESSAGE)
 
 

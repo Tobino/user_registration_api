@@ -16,6 +16,15 @@ async def test_register_user_returns_generic_message(client):
     }
 
 
+async def test_register_user_sends_4_digit_code_to_email_service(client, email_sender):
+    resp = await client.post("/users", json=_VALID_PAYLOAD)
+    assert resp.status_code == 202
+    assert len(email_sender.sent) == 1
+    sent_email, sent_code = email_sender.sent[0]
+    assert sent_email == "user@example.com"
+    assert len(sent_code) == 4 and sent_code.isdigit()
+
+
 async def test_register_user_rejects_invalid_email(client):
     resp = await client.post(
         "/users", json={"email": "not-an-email", "password": "supersecret"}
