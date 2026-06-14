@@ -13,7 +13,11 @@ import pytest
 from app.api import deps
 from app.core.config import Settings
 from app.main import app
-from app.services.rate_limit import RateLimiter, RegistrationRateLimiter
+from app.services.rate_limit import (
+    EmailRateLimiter,
+    RateLimiter,
+    RegistrationRateLimiter,
+)
 from tests.fakes import FakeCodeStore, FakeEmailSender, FakeUserRepository
 
 # Fixed client IP injected into the ASGI scope so per-IP rate-limit tests are
@@ -58,11 +62,23 @@ def rate_limiter(fake_redis, settings) -> RegistrationRateLimiter:
 
 
 @pytest.fixture
-async def client(email_sender, user_repository, code_store, rate_limiter):
+def email_rate_limiter(fake_redis, settings) -> EmailRateLimiter:
+    return EmailRateLimiter(
+        RateLimiter(fake_redis),
+        hourly_limit=settings.email_send_hourly_limit,
+        daily_limit=settings.email_send_daily_limit,
+    )
+
+
+@pytest.fixture
+async def client(
+    email_sender, user_repository, code_store, rate_limiter, email_rate_limiter
+):
     app.dependency_overrides[deps.get_email_sender] = lambda: email_sender
     app.dependency_overrides[deps.get_user_repository] = lambda: user_repository
     app.dependency_overrides[deps.get_code_store] = lambda: code_store
     app.dependency_overrides[deps.get_registration_rate_limiter] = lambda: rate_limiter
+    app.dependency_overrides[deps.get_email_rate_limiter] = lambda: email_rate_limiter
     transport = httpx.ASGITransport(app=app, client=(TEST_CLIENT_IP, 12345))
     try:
         async with httpx.AsyncClient(

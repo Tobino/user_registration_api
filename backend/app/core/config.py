@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     signup_rate_limit: int = 50  # at most N registrations per IP...
     signup_rate_limit_window_seconds: int = 3600  # ...within this rolling window
 
+    # --- Activation-email rate limit (per email address) -------------------
+    # Caps activation-code emails per address (initial send + resends) to blunt
+    # email-bombing, enforced across an hourly and a daily window at once.
+    email_send_hourly_limit: int = 3
+    email_send_daily_limit: int = 10
+
     # --- Third-party email API (mocked by ealen/echo-server in compose) ----
     email_api_url: str = "http://email/"
     email_api_timeout_seconds: float = 5.0

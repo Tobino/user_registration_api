@@ -18,7 +18,11 @@ from app.db.postgres import Database
 from app.repositories.user_repository import UserRepository
 from app.services.codes import CodeStore
 from app.services.email import EmailSender
-from app.services.rate_limit import RateLimiter, RegistrationRateLimiter
+from app.services.rate_limit import (
+    EmailRateLimiter,
+    RateLimiter,
+    RegistrationRateLimiter,
+)
 from app.services.user_service import UserService
 
 # HTTP Basic auth used by the activation endpoint to identify the user.
@@ -65,12 +69,28 @@ def get_registration_rate_limiter(
     )
 
 
+def get_email_rate_limiter(
+    client: redis.Redis = Depends(get_redis),
+    settings: Settings = Depends(get_settings),
+) -> EmailRateLimiter:
+    return EmailRateLimiter(
+        RateLimiter(client),
+        hourly_limit=settings.email_send_hourly_limit,
+        daily_limit=settings.email_send_daily_limit,
+    )
+
+
 def get_user_service(
     users: UserRepository = Depends(get_user_repository),
     codes: CodeStore = Depends(get_code_store),
     email: EmailSender = Depends(get_email_sender),
+    email_limiter: EmailRateLimiter = Depends(get_email_rate_limiter),
     settings: Settings = Depends(get_settings),
 ) -> UserService:
     return UserService(
-        users, codes, email, max_attempts=settings.activation_max_attempts
+        users,
+        codes,
+        email,
+        email_limiter,
+        max_attempts=settings.activation_max_attempts,
     )

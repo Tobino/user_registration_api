@@ -125,6 +125,8 @@ Docker Compose setup, so nothing has to be set to run locally.
 | `ACTIVATION_MAX_ATTEMPTS` | `3` | Max code guesses per issued code before lockout. |
 | `SIGNUP_RATE_LIMIT` | `50` | Max registrations per IP within the window (see below). |
 | `SIGNUP_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Rolling window for the per-IP signup limit. |
+| `EMAIL_SEND_HOURLY_LIMIT` | `3` | Max activation emails per address per hour. |
+| `EMAIL_SEND_DAILY_LIMIT` | `10` | Max activation emails per address per day. |
 | `EMAIL_API_URL` | `http://email/` | Third-party email API endpoint. |
 | `EMAIL_API_TIMEOUT_SECONDS` | `5.0` | Per-request timeout for the email API. |
 | `EMAIL_API_RETRY_ATTEMPTS` | `3` | Retry attempts when sending the activation email. |
@@ -141,6 +143,15 @@ done. Tune it with `SIGNUP_RATE_LIMIT` / `SIGNUP_RATE_LIMIT_WINDOW_SECONDS`.
 The client IP comes from `X-Forwarded-For` (uvicorn runs with `--proxy-headers`
 behind the nginx proxy). Activation is separately protected by a per-code guess
 cap (`ACTIVATION_MAX_ATTEMPTS`, default 3).
+
+### Activation emails per address
+
+Each address is also capped on **how many activation codes it can be emailed** —
+**3 per hour** and **10 per day** (`EMAIL_SEND_HOURLY_LIMIT` /
+`EMAIL_SEND_DAILY_LIMIT`), enforced over two Redis sliding windows at once. Both
+the initial send and every resend count; exceeding either window returns
+**`429`** with a `Retry-After` (3600 or 86400). This blunts email-bombing via the
+resend path without locking the address out for long.
 
 ---
 

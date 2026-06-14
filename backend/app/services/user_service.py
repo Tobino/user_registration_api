@@ -19,6 +19,7 @@ from app.core.security import generate_code, hash_password, verify_password
 from app.repositories.user_repository import UserRepository
 from app.services.codes import CodeStore
 from app.services.email import EmailSender
+from app.services.rate_limit import EmailRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class UserService:
         users: UserRepository,
         codes: CodeStore,
         email: EmailSender,
+        email_limiter: EmailRateLimiter,
         *,
         code_length: int = 4,
         max_attempts: int = 3,
@@ -36,6 +38,7 @@ class UserService:
         self._users = users
         self._codes = codes
         self._email = email
+        self._email_limiter = email_limiter
         self._code_length = code_length
         self._max_attempts = max_attempts
 
@@ -99,6 +102,10 @@ class UserService:
         is refreshed once the email has been sent so the validity window starts
         at delivery and isn't eaten by the email service latency.
         """
+        # Cap activation emails per address (3/hour and 10/day) to blunt
+        # email-bombing, before generating/storing a new code. Raises 429.
+        await self._email_limiter.enforce(email)
+
         code = generate_code(self._code_length)
         await self._codes.store(email, code)
         logger.info("issue_code: code stored in Redis for email=%s", email)
