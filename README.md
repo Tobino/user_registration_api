@@ -32,6 +32,29 @@ flowchart LR
     api -->|codes w/ TTL,<br/>rate-limit windows| redis
     api -->|httpx + retry| ealenechoserver
 ```
+---
+
+## Running it
+
+Only Docker + Docker Compose are required.
+
+```bash
+docker compose up --build
+```
+
+The API is served through the nginx proxy at **http://localhost:8080**.
+Interactive docs: **http://localhost:8080/docs**.
+And documentation: **http://localhost:8080/redoc**.
+
+### Try it end-to-end
+
+```bash
+# 1) Register — always returns a generic 202 (no account enumeration)
+curl -i -X POST http://localhost:8080/users \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"secretpw!"}'
+```
+
 
 ---
 
