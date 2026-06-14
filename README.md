@@ -53,6 +53,16 @@ And documentation: **http://localhost:8080/redoc**.
 curl -i -X POST http://localhost:8080/users \
   -H 'Content-Type: application/json' \
   -d '{"email":"user@example.com","password":"secretpw!"}'
+
+# 2) Read the 4-digit code. The email provider is mocked by echo-server, which
+#    logs the full request body (where the code lives):
+docker compose logs email | grep -oE 'activation code is [0-9]{4}'
+
+# 3) Activate with Basic auth (email:password) + the code (within 60s)
+curl -i -X POST http://localhost:8080/users/activate \
+  -u 'user@example.com:secretpw!' \
+  -H 'Content-Type: application/json' \
+  -d '{"code":"1234"}'
 ```
 
 
