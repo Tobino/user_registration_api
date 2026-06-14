@@ -7,6 +7,7 @@ API turns into HTTP responses.
 
 from __future__ import annotations
 
+import logging
 import secrets
 
 from app.core.exceptions import (
@@ -18,6 +19,8 @@ from app.core.security import generate_code, hash_password, verify_password
 from app.repositories.user_repository import UserRepository
 from app.services.codes import CodeStore
 from app.services.email import EmailSender
+
+logger = logging.getLogger(__name__)
 
 
 class UserService:
@@ -54,16 +57,36 @@ class UserService:
         """
         # Hash on every path (even the do-nothing ones) so the dominant cost is
         # identical regardless of branch — the timing must not leak existence.
+        # NB: never log the plaintext password or the activation code.
+        logger.info("register: start email=%s", email)
         password_hash = hash_password(password)
 
         existing = await self._users.get_by_email(email)
         if existing is None:
+            logger.info("register: unknown email=%s -> creating account", email)
             await self._users.create(email, password_hash)
         elif existing.is_active:
+            logger.info(
+                "register: email=%s already active -> no-op (id=%s)",
+                email,
+                existing.id,
+            )
             return
         elif await self._codes.get(email) is not None:
+            logger.info(
+                "register: email=%s pending with a live code -> no-op, not resending"
+                " (id=%s)",
+                email,
+                existing.id,
+            )
             return
         else:
+            logger.info(
+                "register: email=%s pending without a code -> updating password"
+                " (id=%s)",
+                email,
+                existing.id,
+            )
             await self._users.update_password(existing.id, password_hash)
 
         await self._issue_code(email)
@@ -78,8 +101,10 @@ class UserService:
         """
         code = generate_code(self._code_length)
         await self._codes.store(email, code)
+        logger.info("issue_code: code stored in Redis for email=%s", email)
         await self._email.send_activation_code(email, code)
         await self._codes.refresh(email)
+        logger.info("issue_code: code sent and TTL refreshed for email=%s", email)
 
     async def activate(self, email: str, password: str, code: str) -> None:
         """Verify credentials + code (within the TTL) and activate the account.
@@ -93,24 +118,46 @@ class UserService:
         wrong one. Requesting a new code resets the budget.
         """
         email = email.strip().lower()
+        logger.info("activate: start email=%s", email)
         user = await self._users.get_by_email(email)
         stored_hash = user.password_hash if user is not None else None
         if not verify_password(password, stored_hash):
+            logger.warning(
+                "activate: invalid credentials email=%s (user_exists=%s)",
+                email,
+                user is not None,
+            )
             raise InvalidCredentials()
 
         # verify_password only returns True when the user exists.
         assert user is not None
         if user.is_active:
+            logger.info("activate: email=%s already active -> no-op (id=%s)", email, user.id)
             return  # activation is idempotent for an already-active account
 
         # Reject once the attempt budget is exhausted, before touching the code.
-        if await self._codes.get_attempts(email) >= self._max_attempts:
+        attempts = await self._codes.get_attempts(email)
+        if attempts >= self._max_attempts:
+            logger.warning(
+                "activate: too many attempts email=%s (%d/%d)",
+                email,
+                attempts,
+                self._max_attempts,
+            )
             raise TooManyAttempts()
 
         stored_code = await self._codes.get(email)
         if stored_code is None or not secrets.compare_digest(stored_code, code):
-            await self._codes.record_failed_attempt(email)
+            count = await self._codes.record_failed_attempt(email)
+            logger.warning(
+                "activate: invalid/expired code email=%s (expired=%s, attempt=%d/%d)",
+                email,
+                stored_code is None,
+                count,
+                self._max_attempts,
+            )
             raise InvalidOrExpiredCode()
 
         await self._users.mark_active(user.id)
         await self._codes.delete(email)
+        logger.info("activate: success email=%s account activated (id=%s)", email, user.id)
