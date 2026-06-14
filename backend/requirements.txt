@@ -1,6 +1,9 @@
 fastapi[standard]>=0.136.0,<0.137.0
 pydantic>=2.7.0,<3.0.0
 
+# Centralised, env-driven application settings (12-factor).
+pydantic-settings>=2.2.0,<3.0.0
+
 # Password hashing.
 bcrypt>=4.1.0,<5.0.0
 

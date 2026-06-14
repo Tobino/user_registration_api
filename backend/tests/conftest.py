@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from app.api import deps
+from app.core.config import Settings
 from app.main import app
 from app.services.rate_limit import RateLimiter, RegistrationRateLimiter
 from tests.fakes import FakeCodeStore, FakeEmailSender, FakeUserRepository
@@ -36,18 +37,23 @@ def code_store() -> FakeCodeStore:
 
 
 @pytest.fixture
+def settings() -> Settings:
+    return Settings()
+
+
+@pytest.fixture
 def fake_redis() -> fakeredis.aioredis.FakeRedis:
     return fakeredis.aioredis.FakeRedis(decode_responses=True)
 
 
 @pytest.fixture
-def rate_limiter(fake_redis) -> RegistrationRateLimiter:
+def rate_limiter(fake_redis, settings) -> RegistrationRateLimiter:
     # Real sliding-window limiter backed by fakeredis, so the throttling logic
     # is genuinely exercised. Uses the same defaults as production wiring.
     return RegistrationRateLimiter(
         RateLimiter(fake_redis),
-        limit=deps.SIGNUP_RATE_LIMIT,
-        window_seconds=deps.SIGNUP_RATE_LIMIT_WINDOW_SECONDS,
+        limit=settings.signup_rate_limit,
+        window_seconds=settings.signup_rate_limit_window_seconds,
     )
 
 
