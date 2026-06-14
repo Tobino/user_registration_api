@@ -10,7 +10,7 @@
 services:
   server:
     build:
-      context: .
+      context: ./backend
   proxy:
       image: nginx:alpine
       ports:
@@ -52,4 +52,3 @@ services:
 # secrets:
 #   db-password:
 #     file: db/password.txt
-
