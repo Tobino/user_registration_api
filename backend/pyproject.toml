@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+# `auto` lets us write `async def test_*` without decorating every test.
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q"
+# /backend is read-only for the non-root appuser in the container; keep the
+# pytest cache off it.
+cache_dir = "/tmp/.pytest_cache"
+filterwarnings = [
+    # pytest-asyncio touches APIs deprecated in 3.14; not actionable here.
+    "ignore::DeprecationWarning:pytest_asyncio.*",
+]
