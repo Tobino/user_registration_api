@@ -28,9 +28,14 @@ class FakeCodeStore:
 
     def __init__(self) -> None:
         self.codes: dict[str, str] = {}
+        self.refreshed: list[str] = []
 
     async def store(self, email: str, code: str) -> None:
         self.codes[email] = code
+
+    async def refresh(self, email: str) -> None:
+        # No real TTL in the fake; mirror Redis EXPIRE's no-op on a missing key.
+        self.refreshed.append(email)
 
     async def get(self, email: str) -> str | None:
         return self.codes.get(email)

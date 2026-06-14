@@ -22,6 +22,15 @@ class CodeStore:
     async def store(self, email: str, code: str) -> None:
         await self._redis.set(self._key(email), code, ex=self._ttl)
 
+    async def refresh(self, email: str) -> None:
+        """Reset the validity window to the full TTL without touching the code.
+
+        Called once the (potentially slow) email send has completed so the user
+        gets the full window from delivery, not from when the code was stored.
+        Redis ``EXPIRE`` is a no-op if the key has already expired.
+        """
+        await self._redis.expire(self._key(email), self._ttl)
+
     async def get(self, email: str) -> str | None:
         return await self._redis.get(self._key(email))
 

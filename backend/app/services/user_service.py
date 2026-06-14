@@ -31,8 +31,11 @@ class UserService:
         The account is stored with a bcrypt hash (never the plaintext). The
         activation code is persisted in Redis under its TTL before being handed
         to the email sender, so a delivery failure still leaves a usable code.
+        The TTL is then refreshed once the email has been sent so the validity
+        window starts at delivery and isn't eaten by the email service latency.
         """
         await self._users.create(email, hash_password(password))
         code = generate_code(self._code_length)
         await self._codes.store(email, code)
         await self._email.send_activation_code(email, code)
+        await self._codes.refresh(email)
