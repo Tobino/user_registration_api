@@ -54,6 +54,15 @@ services:
 #   db-password:
 #     file: db/password.txt
 
+  # Stand-in for the third-party email API. The app POSTs the activation email
+  # here (real httpx call + retry); echo-server replies 200 so the send
+  # succeeds and logs the full request body, so the 4-digit code is observable
+  # via `docker compose logs email`.
+  email:
+    image: ealen/echo-server
+    expose:
+      - "80"
+
   # --- Test runner: `docker compose run --rm tests` --------------------------
   tests:
     build:
