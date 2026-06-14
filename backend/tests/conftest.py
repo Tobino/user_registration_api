@@ -11,7 +11,7 @@ import pytest
 
 from app.api import deps
 from app.main import app
-from tests.fakes import FakeEmailSender, FakeUserRepository
+from tests.fakes import FakeCodeStore, FakeEmailSender, FakeUserRepository
 
 
 @pytest.fixture
@@ -25,9 +25,15 @@ def user_repository() -> FakeUserRepository:
 
 
 @pytest.fixture
-async def client(email_sender, user_repository):
+def code_store() -> FakeCodeStore:
+    return FakeCodeStore()
+
+
+@pytest.fixture
+async def client(email_sender, user_repository, code_store):
     app.dependency_overrides[deps.get_email_sender] = lambda: email_sender
     app.dependency_overrides[deps.get_user_repository] = lambda: user_repository
+    app.dependency_overrides[deps.get_code_store] = lambda: code_store
     transport = httpx.ASGITransport(app=app)
     try:
         async with httpx.AsyncClient(

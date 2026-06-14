@@ -23,6 +23,22 @@ class FakeUserRepository:
         return record
 
 
+class FakeCodeStore:
+    """Stores activation codes in a dict instead of hitting Redis."""
+
+    def __init__(self) -> None:
+        self.codes: dict[str, str] = {}
+
+    async def store(self, email: str, code: str) -> None:
+        self.codes[email] = code
+
+    async def get(self, email: str) -> str | None:
+        return self.codes.get(email)
+
+    async def delete(self, email: str) -> None:
+        self.codes.pop(email, None)
+
+
 class FakeEmailSender:
     """Records every activation code it is asked to send instead of doing HTTP."""
 
