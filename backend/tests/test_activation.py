@@ -107,7 +107,10 @@ async def test_new_code_resets_attempt_budget(client, code_store):
             "/users/activate", json={"code": wrong}, auth=(EMAIL, PASSWORD)
         )
 
-    # Requesting a new code (re-register) clears the lockout.
+    # Re-registering only issues a new code once the previous one has expired
+    # (registration is a no-op while a code is still live). Simulate that expiry
+    # so a fresh code — and a fresh budget — can be requested.
+    code_store.codes.pop(EMAIL)
     await _register(client)
     fresh_code = code_store.codes[EMAIL]
 

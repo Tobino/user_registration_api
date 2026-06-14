@@ -37,15 +37,45 @@ class UserService:
         self._max_attempts = max_attempts
 
     async def register(self, email: str, password: str) -> None:
-        """Create the account and issue an activation code.
+        """Create or re-prime a pending account and issue an activation code.
 
-        The account is stored with a bcrypt hash (never the plaintext). The
-        activation code is persisted in Redis under its TTL before being handed
-        to the email sender, so a delivery failure still leaves a usable code.
-        The TTL is then refreshed once the email has been sent so the validity
-        window starts at delivery and isn't eaten by the email service latency.
+        The endpoint is enumeration-safe: every caller gets the same generic
+        response, and the bcrypt hash is computed on every branch so the timing
+        doesn't reveal whether the email already exists.
+
+        Branches, in order:
+
+        * **unknown email** — create the account and send a code;
+        * **already active** — do nothing, the account is registered;
+        * **pending with a live code** — do nothing, a code is already in
+          flight (avoids resending while one is still valid);
+        * **pending with no live code** — update the password and send a fresh
+          code, letting the user pick up where an expired code left off.
         """
-        await self._users.create(email, hash_password(password))
+        # Hash on every path (even the do-nothing ones) so the dominant cost is
+        # identical regardless of branch — the timing must not leak existence.
+        password_hash = hash_password(password)
+
+        existing = await self._users.get_by_email(email)
+        if existing is None:
+            await self._users.create(email, password_hash)
+        elif existing.is_active:
+            return
+        elif await self._codes.get(email) is not None:
+            return
+        else:
+            await self._users.update_password(existing.id, password_hash)
+
+        await self._issue_code(email)
+
+    async def _issue_code(self, email: str) -> None:
+        """Generate, store, and email a fresh activation code.
+
+        The code is persisted in Redis under its TTL before being handed to the
+        email sender, so a delivery failure still leaves a usable code. The TTL
+        is refreshed once the email has been sent so the validity window starts
+        at delivery and isn't eaten by the email service latency.
+        """
         code = generate_code(self._code_length)
         await self._codes.store(email, code)
         await self._email.send_activation_code(email, code)

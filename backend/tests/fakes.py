@@ -26,6 +26,12 @@ class FakeUserRepository:
         self.by_email[email] = record
         return record
 
+    async def update_password(self, user_id: UUID, password_hash: str) -> None:
+        for email, record in self.by_email.items():
+            if record.id == user_id:
+                self.by_email[email] = replace(record, password_hash=password_hash)
+                return
+
     async def mark_active(self, user_id: UUID) -> None:
         for email, record in self.by_email.items():
             if record.id == user_id:

@@ -51,6 +51,13 @@ class UserRepository:
         )
         return UserRecord(**dict(row)) if row is not None else None
 
+    async def update_password(self, user_id: UUID, password_hash: str) -> None:
+        await self._pool.execute(
+            "UPDATE users SET password_hash = $2 WHERE id = $1",
+            user_id,
+            password_hash,
+        )
+
     async def mark_active(self, user_id: UUID) -> None:
         await self._pool.execute(
             "UPDATE users SET is_active = TRUE, activated_at = now() WHERE id = $1",
