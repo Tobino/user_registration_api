@@ -10,12 +10,13 @@ import httpx
 from fastapi import FastAPI
 
 from app.api.errors import register_exception_handlers
+from app.api.middleware import CorrelationIdMiddleware
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
+from app.core.logging import configure_logging
 from app.db.postgres import Database
 from app.db.redis import create_redis
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -62,11 +63,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Application shutdown complete")
 
 
+_settings = get_settings()
+configure_logging(_settings.log_level)
+
 app = FastAPI(lifespan=lifespan)
 # Settings are resolved once and stashed on app.state at construction time (not
 # in the lifespan), so dependencies can read them even when the lifespan isn't
 # run -- e.g. under httpx's ASGITransport in the test suite.
-app.state.settings = get_settings()
+app.state.settings = _settings
+
+# Bind a correlation ID to every request (and expose it via X-Request-ID) so
+# the JSON logs can be traced end-to-end.
+app.add_middleware(CorrelationIdMiddleware)
 
 register_exception_handlers(app)
 app.include_router(api_router)

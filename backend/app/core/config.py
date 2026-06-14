@@ -24,6 +24,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # --- Observability ------------------------------------------------------
+    log_level: str = "INFO"
+
     # --- PostgreSQL (raw SQL via asyncpg, no ORM) ---------------------------
     # ``database_url`` wins when set (handy for local runs and tests); otherwise
     # the DSN is assembled from the parts below, with the password optionally
