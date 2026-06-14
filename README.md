@@ -58,6 +58,43 @@ curl -i -X POST http://localhost:8080/users \
 
 ---
 
+## Observability
+
+### Structured JSON logs
+
+The app logs to **stdout** as one JSON object per line, so the output can be
+ingested as-is by a log collector. Each record carries `timestamp`, `level`,
+`logger`, `message`, the `request_id` (see below) when emitted inside a request,
+an `exception` traceback on errors, and any structured `extra` fields:
+
+```json
+{"timestamp":"2026-06-14T19:41:43.973+00:00","level":"INFO","logger":"app.services.user_service","message":"register: start email=jerome@botineau.com","request_id":"9f1c…","email":"jerome@botineau.com"}
+```
+
+The verbosity is controlled by the **`LOG_LEVEL`** environment variable
+(`DEBUG`, `INFO`, `WARNING`, `ERROR`; default **`INFO`**).
+
+### Correlation IDs (`X-Request-ID`)
+
+Every request is tagged with a correlation ID so its logs can be traced
+end-to-end:
+
+- if the request comes in with an **`X-Request-ID`** header it is reused,
+  otherwise a fresh one is generated;
+- the ID is **echoed back** in the response `X-Request-ID` header;
+- it appears as `request_id` on every log line produced while handling the
+  request (routes, services and repositories alike).
+
+```bash
+curl -i -X POST http://localhost:8080/users \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-ID: trace-42' \
+  -d '{"email":"jerome@botineau.com","password":"secretpw!"}'
+# -> response includes:  X-Request-ID: trace-42
+```
+
+---
+
 ## Testing
 
 Run the full suite in a container (no local Python needed):
