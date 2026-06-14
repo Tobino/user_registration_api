@@ -1,0 +1,3 @@
+
+# Local DB password (Docker secret) — never commit
+db/password.txt

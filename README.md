@@ -62,6 +62,11 @@ curl -i -X POST http://localhost:8080/users \
 
 Run the full suite in a container (no local Python needed):
 
+First choose a db password and store it :
+```
+echo <your-password> > db/password.txt
+```
+
 ```bash
 docker compose run --rm tests
 ```
