@@ -53,6 +53,23 @@ class TooManyAttempts(DomainError):
     detail = "Too many invalid activation attempts. Request a new code."
 
 
+class RateLimitExceeded(DomainError):
+    """A configured rate limit was hit (e.g. too many registrations per IP).
+
+    Carries an optional ``retry_after`` (seconds) so the error handler can set a
+    standards-compliant ``Retry-After`` response header.
+    """
+
+    status_code = 429
+    detail = "Too many requests. Please try again later."
+
+    def __init__(
+        self, detail: str | None = None, retry_after: int | None = None
+    ) -> None:
+        super().__init__(detail)
+        self.retry_after = retry_after
+
+
 class EmailDeliveryError(DomainError):
     """The third-party email API could not be reached after retries."""
 

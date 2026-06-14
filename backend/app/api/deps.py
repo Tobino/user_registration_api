@@ -18,6 +18,7 @@ from app.db.postgres import Database
 from app.repositories.user_repository import UserRepository
 from app.services.codes import CodeStore
 from app.services.email import EmailSender
+from app.services.rate_limit import RateLimiter, RegistrationRateLimiter
 from app.services.user_service import UserService
 
 # Activation codes expire after this validity window (enforced by Redis TTL).
@@ -25,6 +26,12 @@ CODE_TTL_SECONDS = int(os.environ.get("CODE_TTL_SECONDS", "60"))
 
 # Maximum number of code guesses allowed per issued activation code.
 ACTIVATION_MAX_ATTEMPTS = int(os.environ.get("ACTIVATION_MAX_ATTEMPTS", "3"))
+
+# Per-IP cap on account registrations within a rolling window (default 50/hour).
+SIGNUP_RATE_LIMIT = int(os.environ.get("SIGNUP_RATE_LIMIT", "50"))
+SIGNUP_RATE_LIMIT_WINDOW_SECONDS = int(
+    os.environ.get("SIGNUP_RATE_LIMIT_WINDOW_SECONDS", "3600")
+)
 
 # HTTP Basic auth used by the activation endpoint to identify the user.
 basic_auth = HTTPBasic()
@@ -48,6 +55,16 @@ def get_user_repository(db: Database = Depends(get_database)) -> UserRepository:
 
 def get_code_store(client: redis.Redis = Depends(get_redis)) -> CodeStore:
     return CodeStore(client, CODE_TTL_SECONDS)
+
+
+def get_registration_rate_limiter(
+    client: redis.Redis = Depends(get_redis),
+) -> RegistrationRateLimiter:
+    return RegistrationRateLimiter(
+        RateLimiter(client),
+        limit=SIGNUP_RATE_LIMIT,
+        window_seconds=SIGNUP_RATE_LIMIT_WINDOW_SECONDS,
+    )
 
 
 def get_user_service(

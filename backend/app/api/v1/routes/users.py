@@ -1,14 +1,19 @@
 """User registration and activation endpoints."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from fastapi.security import HTTPBasicCredentials
 
-from app.api.deps import basic_auth, get_user_service
+from app.api.deps import (
+    basic_auth,
+    get_registration_rate_limiter,
+    get_user_service,
+)
 from app.schemas.user import (
     ActivationRequest,
     MessageResponse,
     UserRegistrationRequest,
 )
+from app.services.rate_limit import RegistrationRateLimiter
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -28,13 +33,22 @@ _GENERIC_REGISTRATION_MESSAGE = (
 )
 async def register_user(
     payload: UserRegistrationRequest,
+    request: Request,
     service: UserService = Depends(get_user_service),
+    rate_limiter: RegistrationRateLimiter = Depends(get_registration_rate_limiter),
 ) -> MessageResponse:
+    # Throttle account creation per client IP (default 50/hour) before doing any
+    # work, raising 429 once the budget is spent. request.client.host reflects
+    # the real client IP because uvicorn runs with --proxy-headers behind nginx
+    # (which forwards X-Forwarded-For).
+    client_ip = request.client.host if request.client else "unknown"
+    await rate_limiter.enforce(client_ip)
+
     # The service persists the account (bcrypt hash, never the plaintext),
     # stores the activation code in Redis under its TTL, and hands it to the
     # third-party email service. Duplicate registrations are silently ignored
     # by the repository (ON CONFLICT DO NOTHING) so the response stays
-    # enumeration-safe. Rate limiting is still out of scope.
+    # enumeration-safe.
     await service.register(payload.email, payload.password)
     return MessageResponse(message=_GENERIC_REGISTRATION_MESSAGE)
 
