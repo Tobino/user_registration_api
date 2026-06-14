@@ -74,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         max_size=DB_POOL_MAX_SIZE,
     )
     await database.connect()
+    await database.apply_migrations()
 
     # One shared HTTP client for the third-party email API, reused across
     # requests (connection pooling) and closed on shutdown.
