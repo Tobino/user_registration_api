@@ -4,3 +4,8 @@ pydantic>=2.7.0,<3.0.0
 # Third-party email API client + retry policy.
 httpx>=0.27.0,<0.29.0
 tenacity>=8.2.0,<10.0.0
+
+# PostgreSQL driver (raw SQL via asyncpg, no ORM).
+# 0.31.0 is the first release shipping cp314 wheels (matches python:3.14-slim);
+# earlier versions have no prebuilt wheel and fail to compile (no gcc in slim).
+asyncpg>=0.31.0,<0.32.0

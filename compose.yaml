@@ -12,6 +12,15 @@ services:
     build:
       context: ./backend
       target: prod
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_NAME: users
+      # Password read from the same secret as the db service (never inlined).
+      DB_PASSWORD_FILE: /run/secrets/db-password
+    secrets:
+      - db-password
     depends_on:
       db:
         condition: service_healthy
