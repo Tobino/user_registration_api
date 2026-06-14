@@ -19,10 +19,13 @@ services:
       DB_NAME: users
       # Password read from the same secret as the db service (never inlined).
       DB_PASSWORD_FILE: /run/secrets/db-password
+      REDIS_URL: redis://redis:6379/0
     secrets:
       - db-password
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
   proxy:
       image: nginx:alpine

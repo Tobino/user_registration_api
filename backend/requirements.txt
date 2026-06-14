@@ -12,3 +12,6 @@ tenacity>=8.2.0,<10.0.0
 # 0.31.0 is the first release shipping cp314 wheels (matches python:3.14-slim);
 # earlier versions have no prebuilt wheel and fail to compile (no gcc in slim).
 asyncpg>=0.31.0,<0.32.0
+
+# Redis for anything that expires (activation codes, rate-limit counters).
+redis>=5.0.0,<6.0.0

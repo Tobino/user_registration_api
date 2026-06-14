@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
 from app.db.postgres import Database
+from app.db.redis import create_redis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +30,10 @@ EMAIL_API_RETRY_ATTEMPTS = int(os.environ.get("EMAIL_API_RETRY_ATTEMPTS", "3"))
 # asyncpg-compatible DSN for the PostgreSQL service defined in compose.
 DB_POOL_MIN_SIZE = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
 DB_POOL_MAX_SIZE = int(os.environ.get("DB_POOL_MAX_SIZE", "10"))
+
+# Redis holds everything that expires (activation codes, rate-limit counters).
+# Defaults to the `redis` service defined in compose.
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
 
 def _build_database_url() -> str:
@@ -76,10 +81,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await database.connect()
     await database.apply_migrations()
 
+    # Shared Redis client, opened on startup and closed on shutdown.
+    redis_client = create_redis(REDIS_URL)
+
     # One shared HTTP client for the third-party email API, reused across
     # requests (connection pooling) and closed on shutdown.
     http_client = httpx.AsyncClient(timeout=EMAIL_API_TIMEOUT_SECONDS)
     app.state.db = database
+    app.state.redis = redis_client
     app.state.email_sender = HttpEmailSender(
         http_client,
         EMAIL_API_URL,
@@ -91,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await http_client.aclose()
+        await redis_client.aclose()
         await database.disconnect()
         logger.info("Application shutdown complete")
 
