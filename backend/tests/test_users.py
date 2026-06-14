@@ -1,14 +1,33 @@
 """Tests for the user registration and activation endpoints."""
 
 
-async def test_register_user_returns_201(client):
-    resp = await client.post("/users")
-    assert resp.status_code == 201
+_VALID_PAYLOAD = {"email": "user@example.com", "password": "supersecret"}
 
 
-async def test_register_user_returns_hello_world(client):
-    resp = await client.post("/users")
-    assert resp.json() == {"message": "hello world"}
+async def test_register_user_returns_202(client):
+    resp = await client.post("/users", json=_VALID_PAYLOAD)
+    assert resp.status_code == 202
+
+
+async def test_register_user_returns_generic_message(client):
+    resp = await client.post("/users", json=_VALID_PAYLOAD)
+    assert resp.json() == {
+        "message": "If the email is eligible, an activation code has been sent."
+    }
+
+
+async def test_register_user_rejects_invalid_email(client):
+    resp = await client.post(
+        "/users", json={"email": "not-an-email", "password": "supersecret"}
+    )
+    assert resp.status_code == 422
+
+
+async def test_register_user_rejects_short_password(client):
+    resp = await client.post(
+        "/users", json={"email": "user@example.com", "password": "short"}
+    )
+    assert resp.status_code == 422
 
 
 async def test_activate_user_returns_200(client):
