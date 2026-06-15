@@ -56,11 +56,11 @@ def test_formatter_includes_exception():
 
 
 async def test_response_carries_generated_request_id(client):
-    resp = await client.get("/")
+    resp = await client.get("/openapi.json")
     assert resp.status_code == 200
     assert resp.headers.get("X-Request-ID")  # a fresh id was minted
 
 
 async def test_inbound_request_id_is_echoed(client):
-    resp = await client.get("/", headers={"X-Request-ID": "trace-42"})
+    resp = await client.get("/openapi.json", headers={"X-Request-ID": "trace-42"})
     assert resp.headers["X-Request-ID"] == "trace-42"

@@ -78,8 +78,3 @@ app.add_middleware(CorrelationIdMiddleware)
 
 register_exception_handlers(app)
 app.include_router(api_router)
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
