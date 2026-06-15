@@ -10,6 +10,7 @@ from app.api.deps import (
 )
 from app.schemas.user import (
     ActivationRequest,
+    ErrorResponse,
     MessageResponse,
     UserRegistrationRequest,
 )
@@ -30,6 +31,37 @@ _GENERIC_REGISTRATION_MESSAGE = (
     status_code=status.HTTP_202_ACCEPTED,
     response_model=MessageResponse,
     summary="Register a new user and send an activation code",
+    description=(
+        "Register a user and email a 4-digit activation code. The response is "
+        "always the same generic `202` regardless of whether the email is new, "
+        "pending, or already active, so the endpoint never reveals which "
+        "accounts exist. Throttled per client IP (default 50 / hour)."
+    ),
+    responses={
+        202: {
+            "description": "Request accepted; an activation code is sent if eligible",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": (
+                            "If the email is eligible, an activation code has "
+                            "been sent."
+                        )
+                    }
+                }
+            },
+        },
+        422: {"description": "Payload validation error (e.g. invalid email or short password)"},
+        429: {
+            "description": "Per-IP registration rate limit exceeded (sets `Retry-After`)",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Too many requests. Please try again later."}
+                }
+            },
+        },
+    },
 )
 async def register_user(
     payload: UserRegistrationRequest,
@@ -57,6 +89,51 @@ async def register_user(
     "/activate",
     response_model=MessageResponse,
     summary="Activate a user account with the 4-digit code",
+    description=(
+        "Activate a pending account. The user is identified through HTTP Basic "
+        "auth (email + password); only the 4-digit code travels in the body. "
+        "The code is valid for 60 seconds and allows at most 3 attempts before "
+        "a fresh code must be requested."
+    ),
+    responses={
+        200: {
+            "description": "Account activated",
+            "content": {
+                "application/json": {"example": {"message": "Account activated."}}
+            },
+        },
+        400: {
+            "description": "Invalid, already-used, or expired activation code",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid or expired activation code."}
+                }
+            },
+        },
+        401: {
+            "description": "Invalid Basic auth credentials",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {"example": {"detail": "Invalid credentials."}}
+            },
+        },
+        422: {"description": "Payload validation error (code must be 4 digits)"},
+        429: {
+            "description": "The 3-attempt cap on this code has been exhausted",
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": (
+                            "Too many invalid activation attempts. Request a new "
+                            "code."
+                        )
+                    }
+                }
+            },
+        },
+    },
 )
 async def activate_user(
     payload: ActivationRequest,

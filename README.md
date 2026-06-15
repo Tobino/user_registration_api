@@ -84,8 +84,8 @@ docker compose up --build
 ```
 
 The API is served through the nginx proxy at **http://localhost:8080**.
-Interactive docs: **http://localhost:8080/docs**.
-And documentation: **http://localhost:8080/redoc**.
+Interactive API docs are available at **`/docs`** and **`/redoc`**
+(see [API documentation](#api-documentation) below).
 
 ### Try it end-to-end
 
@@ -106,6 +106,27 @@ curl -i -X POST http://localhost:8080/users/activate \
   -d '{"code":"1234"}'
 ```
 
+---
+
+## API documentation
+
+The API is **self-documenting**: FastAPI generates an OpenAPI schema from the
+route definitions and Pydantic models, so the docs are *living documentation*
+that always matches the running code — there is nothing to keep in sync by hand.
+
+| What | URL | Notes |
+|---|---|---|
+| **Swagger UI** | http://localhost:8080/docs | Interactive — try requests straight from the browser. |
+| **ReDoc** | http://localhost:8080/redoc | Read-oriented, single-page reference. |
+| **OpenAPI schema** | http://localhost:8080/openapi.json | Raw spec, for client/SDK generation or import into Postman/Insomnia. |
+
+Both pages expose, per endpoint, the request/response models with **examples**,
+every documented status code (`202`, `400`, `401`, `422`, `429`, …) with its
+error body, and the HTTP Basic security scheme used by activation. The app
+title, version and endpoint descriptions come from
+[`backend/app/main.py`](backend/app/main.py); the per-route responses and
+examples live in [`backend/app/api/v1/routes/users.py`](backend/app/api/v1/routes/users.py)
+and [`backend/app/schemas/user.py`](backend/app/schemas/user.py).
 
 ---
 

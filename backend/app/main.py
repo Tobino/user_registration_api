@@ -66,7 +66,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 _settings = get_settings()
 configure_logging(_settings.log_level)
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="User Registration API",
+    version="0.1.0",
+    description=(
+        "API for user registration and code-based account activation.\n\n"
+        "**Main flow**\n"
+        "- `POST /users` registers a user and emails a 4-digit "
+        "activation code. The response is always a generic `202` so it never "
+        "reveals whether an email is already registered.\n"
+        "- `POST /users/activate` activates the account using HTTP Basic "
+        "credentials and the 4-digit code (valid for 60 seconds, 3 attempts).\n\n"
+        "Every response carries an `X-Request-ID` correlation header that ties "
+        "it to the structured JSON logs."
+    ),
+    contact={"name": "API Team"},
+    openapi_tags=[
+        {
+            "name": "users",
+            "description": "User registration and activation endpoints.",
+        },
+    ],
+    lifespan=lifespan,
+)
 # Settings are resolved once and stashed on app.state at construction time (not
 # in the lifespan), so dependencies can read them even when the lifespan isn't
 # run -- e.g. under httpx's ASGITransport in the test suite.
