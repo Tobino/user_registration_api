@@ -32,6 +32,45 @@ flowchart LR
     api -->|codes w/ TTL,<br/>rate-limit windows| redis
     api -->|httpx + retry| ealenechoserver
 ```
+
+**Layered, framework-light design** — each layer depends only on the one below
+it, and the service/domain layers know nothing about FastAPI, which keeps them
+unit-testable:
+
+```
+backend/app
+├── main.py                  # app factory + lifespan (open/close db pool, redis, email client)
+├── api
+│   ├── deps.py              # DI providers (settings, db, redis, repos, services)
+│   ├── errors.py            # domain-error -> JSON exception handlers
+│   ├── middleware.py        # pure-ASGI correlation-ID middleware (X-Request-ID)
+│   └── v1
+│       ├── router.py        # aggregates the v1 routers
+│       └── routes/users.py  # HTTP endpoints (thin)
+├── core
+│   ├── config.py            # pydantic-settings (env-driven)
+│   ├── exceptions.py        # framework-agnostic domain errors
+│   ├── logging.py           # JSON log formatter + request_id ContextVar
+│   └── security.py          # bcrypt hashing, dummy-hash, code generation
+├── db
+│   ├── postgres.py          # asyncpg pool + .sql migrations on startup
+│   ├── redis.py             # redis.asyncio client factory
+│   └── migrations/001_init.sql
+├── repositories
+│   └── user_repository.py   # raw parameterised SQL -> UserRecord
+├── schemas/user.py          # Pydantic request/response models
+└── services
+    ├── user_service.py      # registration/activation business logic
+    ├── codes.py             # activation codes in Redis (TTL = expiry)
+    ├── email.py             # EmailSender Protocol + HttpEmailSender (retry)
+    └── rate_limit.py        # sliding-window limiter + signup/email policies
+```
+
+Infrastructure handles (settings, DB pool, Redis client, email sender) are
+opened once in the **lifespan** and stashed on `app.state`; repositories and
+services are assembled from them through `Depends`, so tests can swap any
+collaborator via `app.dependency_overrides`.
+
 ---
 
 ## Running it
@@ -39,6 +78,8 @@ flowchart LR
 Only Docker + Docker Compose are required.
 
 ```bash
+# First choose a db password and store it :
+echo <your-password> > db/password.txt
 docker compose up --build
 ```
 
@@ -158,11 +199,6 @@ resend path without locking the address out for long.
 ## Testing
 
 Run the full suite in a container (no local Python needed):
-
-First choose a db password and store it :
-```
-echo <your-password> > db/password.txt
-```
 
 ```bash
 docker compose run --rm tests
