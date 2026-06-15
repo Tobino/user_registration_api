@@ -53,11 +53,32 @@ _GENERIC_REGISTRATION_MESSAGE = (
         },
         422: {"description": "Payload validation error (e.g. invalid email or short password)"},
         429: {
-            "description": "Per-IP registration rate limit exceeded (sets `Retry-After`)",
+            "description": (
+                "Rate limit exceeded — either the per-IP registration cap or the "
+                "per-address activation-email cap (sets `Retry-After`)"
+            ),
             "model": ErrorResponse,
             "content": {
                 "application/json": {
                     "example": {"detail": "Too many requests. Please try again later."}
+                }
+            },
+        },
+        502: {
+            "description": (
+                "The activation email could not be sent (third-party email API "
+                "unreachable after retries). The code is stored, so registration "
+                "can be retried."
+            ),
+            "model": ErrorResponse,
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": (
+                            "Could not send the activation email. Please try "
+                            "again later."
+                        )
+                    }
                 }
             },
         },

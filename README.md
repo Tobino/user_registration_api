@@ -16,6 +16,49 @@ lifespan events, exception handlers), **PostgreSQL** (raw SQL via `asyncpg` - **
 
 ---
 
+## Registration & activation logic
+
+### Registration decision (`POST /users`)
+
+The endpoint is **enumeration-safe**: every caller gets the same generic `202`,
+and the bcrypt hash is computed on every branch so the response timing never
+reveals whether the email already exists. Internally, `register()` picks one of
+four branches, **in order**:
+
+| # | Account state | Action |
+|---|---|---|
+| 1 | **Unknown email** | Create the account and send a fresh code. |
+| 2 | **Already active** | Do nothing — the account is registered. |
+| 3 | **Pending, code still live** | Do nothing — a valid code is already in flight (no resend while one is usable). |
+| 4 | **Pending, no live code** | Update the password and send a fresh code, so the user can pick up where an expired code left off. |
+
+```mermaid
+flowchart TD
+    start([POST /users]) --> exists{Email exists?}
+    exists -- no --> create[Create account] --> issue[Send code]
+    exists -- yes --> active{Already active?}
+    active -- yes --> noop1([No-op, 202])
+    active -- no --> hascode{Live code in Redis?}
+    hascode -- yes --> noop2([No-op, 202])
+    hascode -- no --> update[Update password] --> issue
+    issue --> done([202])
+```
+
+Branches 1 and 4 then go through `_issue_code`, which is subject to the
+[per-address email rate limit](#activation-emails-per-address) before a code is
+generated, stored in Redis under its TTL, and emailed.
+
+### Activation (`POST /users/activate`)
+
+Credentials are verified **first** (a dummy-hash verify runs for unknown emails
+so "no such user" and "wrong password" are indistinguishable — same `401`, same
+latency). Activation is **idempotent**: an already-active account returns success
+without re-checking the code. Otherwise the 4-digit code is checked against the
+Redis copy within its TTL, with at most `ACTIVATION_MAX_ATTEMPTS` (3) guesses;
+requesting a new code resets the budget.
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -127,6 +170,27 @@ title, version and endpoint descriptions come from
 [`backend/app/main.py`](backend/app/main.py); the per-route responses and
 examples live in [`backend/app/api/v1/routes/users.py`](backend/app/api/v1/routes/users.py)
 and [`backend/app/schemas/user.py`](backend/app/schemas/user.py).
+
+### Error responses
+
+Every error shares the same body shape — `{"detail": "<human-readable reason>"}`
+— produced by the domain-exception handler in
+[`backend/app/api/errors.py`](backend/app/api/errors.py).
+
+| Endpoint | Status | When it happens | `Retry-After` |
+|---|---|---|---|
+| both | `422 Unprocessable Entity` | Payload fails validation: bad email, password not 8–72 chars, or code not exactly 4 digits. | — |
+| `POST /users` | `202 Accepted` | Always on success — generic, enumeration-safe (new / pending / already active are indistinguishable). | — |
+| `POST /users` | `429 Too Many Requests` | Per-IP signup cap (`SIGNUP_RATE_LIMIT`, 50/h) **or** per-address email cap (`EMAIL_SEND_*`, 3/h & 10/day) reached. | yes — `3600` or `86400` |
+| `POST /users` | `502 Bad Gateway` | The email provider is unreachable after `EMAIL_API_RETRY_ATTEMPTS` retries. The code is already stored in Redis, so the user can retry registration. | — |
+| `POST /users/activate` | `200 OK` | Code valid → account activated. Idempotent: returns `200` too if the account was already active. | — |
+| `POST /users/activate` | `400 Bad Request` | Code is wrong, already used, or past its TTL. Each wrong guess counts toward the attempt cap. | — |
+| `POST /users/activate` | `401 Unauthorized` | Wrong Basic-auth credentials — identical whether the account exists or not. | — |
+| `POST /users/activate` | `429 Too Many Requests` | The `ACTIVATION_MAX_ATTEMPTS` (3) guess cap on the current code is exhausted; request a fresh code to reset it. | no |
+
+> Note the two distinct `429`s: rate-limit rejections (signup IP, email-per-address)
+> carry a `Retry-After`, while the activation **attempt cap** does not — it clears
+> only when a new code is issued.
 
 ---
 
